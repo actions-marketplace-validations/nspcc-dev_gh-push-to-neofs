@@ -6,7 +6,7 @@
   </picture>
 </p>
 <p align="center">
-  <a href="https://fs.neo.org">NeoFS</a> is a decentralized distributed object storage integrated with the <a href="https://neo.org">NEO Blockchain</a>.
+  <a href="https://fs.neo.org">NeoFS</a> is a decentralized distributed object storage integrated with the <a href="https://neo.org">Neo blockchain</a>.
 </p>
 
 # GitHub Action to Publish to NeoFS
@@ -14,9 +14,8 @@ This GitHub action allows you to save files as objects in the [NeoFS](https://fs
 
 This way you can both publicly and privately save logs and test results, host web pages, and publish releases.
 
-[Here](https://neospcc.medium.com/neofs-t5-testnet-has-been-started-ae75c30e856b) is a good article on how to get
-started using the NeoFS testnet, this may be useful if you have no experience with NeoFS and want to get started with
-the test network.
+To use this action you need a wallet, some NeoFS balance and a container. The
+easiest way to handle deposit and container creation is via [Panel](https://panel.fs.neo.org/).
 
 ## Supported platforms
 This action supports the following platforms:
@@ -55,38 +54,27 @@ and `NEOFS_HTTP_GATE` environment variables.
 | Key                    | Value                                                                                 | Required | Default                |
 |------------------------|---------------------------------------------------------------------------------------|----------|------------------------|
 | `NEOFS_NETWORK_DOMAIN` | Rpc endpoint domain address                                                           | **No**   | st1.storage.fs.neo.org |
-| `NEOFS_HTTP_GATE`      | HTTP Gateway domain address                                                           | **No**   | http.fs.neo.org        |
+| `NEOFS_HTTP_GATE`      | REST gateway domain address                                                           | **No**   | rest.fs.neo.org        |
 | `STORE_OBJECTS_CID`    | Container ID for your data. For example: 7gHG4HB3BrpFcH9BN3KMZg6hEETx4mFP71nEoNXHFqrv | **Yes**  | N/A                    |
 
 
-### Workflow environment variables
+### Data handling environment variables
 The following variables must be passed as
 [GitHub Actions vars context](https://docs.github.com/en/actions/learn-github-actions/variables#using-the-vars-context-to-access-configuration-variable-values)
 or [GitHub Actions environment variables](https://docs.github.com/en/actions/learn-github-actions/variables).
 
+These inputs control uploaded data. Attributes can be used to identify all objects for a given uploaded set. `LIFETIME`
+can be used to autodelete objects that don't need to be stored forever (like logs or test reports).
+
 | Key                 | Value                                                                                                                                                   | Required | Default |
 |---------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|----------|---------|
 | `PATH_TO_FILES_DIR` | Path to the directory with the files to be pushed                                                                                                       | **Yes**  | N/A     |
+| `LIFETIME`          | Number of epochs (for mainnet 1 epoch is ~1 hour) for object to stay valid (it's deleted afterwards), "0" means "unlimited"                             | **No**   | 0       |
 | `NEOFS_ATTRIBUTES`  | User attributes in form of Key1=Value1,Key2=Value2. By default, each object contains attributes of relative path to the file and MIME type of the file. | **No**   | N/A     |
-| `URL_PREFIX`        | Prefix to the url address for each of the files(objects)                                                                                                | **No**   | N/A     |
-
-### Expiration period environment variables
-The following variables must be passed as 
-[GitHub Actions vars context](https://docs.github.com/en/actions/learn-github-actions/variables#using-the-vars-context-to-access-configuration-variable-values)
-or [GitHub Actions environment variables](https://docs.github.com/en/actions/learn-github-actions/variables).
-
-These environment variables are responsible for the storage time of the results in the storage network in epochs 
-(in the mainnet, an epoch is approximately equal to one hour, so we can assume that values are specified in HOURS).
-
-After the period is over, the data will be deleted. They are convenient to use for log rotation or test reports.
-
-They default to 0, in which case the data will be stored until they are manually deleted.
-We recommend setting a reasonable and convenient for work expiration period, for example, a month (744 hours).
-
-
-| Key        | Value                                     | Required | Default |
-|------------|-------------------------------------------|----------|---------|
-| `LIFETIME` | Number of epochs for object to stay valid | **No**   | 0       |
+| `REPLACE_OBJECTS`   | Boolean controlling object replacement by path, with "false" objects are uploaded and old ones are kept even if they have the same "FilePath"           | **No**   | true    |
+| `REPLACE_CONTAINER_CONTENTS` | Boolean controlling complete container contents replacement, when "true" all old container objects are deleted                                 | **No**   | false   |
+| `STRIP_PREFIX`      | Boolean controlling FilePath attribute of uploaded objects, when "true" PATH_TO_FILES_DIR is stripped from file path                                    | **No**   | false   |
+| `URL_PREFIX`        | Prefix added to the URL address in OUTPUT_CONTAINER_URL                                                                                                 | **No**   | N/A     |
 
 ## Output
 

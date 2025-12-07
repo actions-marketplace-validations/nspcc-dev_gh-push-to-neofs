@@ -16,9 +16,9 @@ inputs:
     required: false
     default: 'st1.storage.fs.neo.org'
   NEOFS_HTTP_GATE:
-    description: HTTP Gateway domain address
+    description: REST gateway domain address
     required: false
-    default: 'http.fs.neo.org'
+    default: 'rest.fs.neo.org'
   STORE_OBJECTS_CID:
     description: Container ID for your data
     required: true
@@ -35,6 +35,18 @@ inputs:
     description: Number of epochs for object to stay valid
     required: false
     default: 0
+  STRIP_PREFIX:
+    description: Drop PATH_TO_FILES_DIR from uploaded data, treat it as the root of container
+    required: false
+    default: 'False'
+  REPLACE_OBJECTS:
+    description: Replace existing objects with the same attributes in the container
+    required: false
+    default: 'True'
+  REPLACE_CONTAINER_CONTENTS:
+    description: Remove all the old existing objects in the container after the new objects are uploaded
+    required: false
+    default: 'False'
 
 outputs:
   OUTPUT_CONTAINER_URL:
@@ -44,14 +56,24 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Download latest stable neofs-cli for uploading reports to NeoFS
+    - name: Download latest stable neofs-cli for uploading reports to NeoFS for Linux
       uses: dsaltares/fetch-gh-release-asset@1.1.1
+      if: runner.os == 'Linux'
       with:
         repo: 'nspcc-dev/neofs-node'
-        version: 'tags/v0.38.1'
-        file: 'neofs-cli-amd64'
+        version: 'tags/v0.41.1'
+        file: 'neofs-cli-linux-amd64'
         target: 'neofs/neofs-cli'
 
+    - name: Download latest stable neofs-cli for uploading reports to NeoFS for macOS
+      uses: dsaltares/fetch-gh-release-asset@1.1.1
+      if: runner.os == 'macOS'
+      with:
+        repo: 'nspcc-dev/neofs-node'
+        version: 'tags/v0.41.1'
+        file: 'neofs-cli-darwin-arm64'
+        target: 'neofs/neofs-cli'
+    
     - name: Chmod latest stable neofs-cli
       shell: bash
       run: |
@@ -68,15 +90,24 @@ runs:
       shell: bash
       env:
         NEOFS_WALLET: ${{ inputs.NEOFS_WALLET }}
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
       run: |
-        echo "$NEOFS_WALLET" | base64 -d > wallet.json
+        echo "$NEOFS_WALLET" | base64 -d > "$GITHUB_ACTION_PATH/wallet.json"
+
+    - name: Install required package if running on macos 
+      shell: bash
+      if: runner.os == 'macOS'
+      run:   |
+        brew install libmagic
 
     - name: Prepare venv
       shell: bash
       id: prepare_venv
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
       run: |
-        python3 -m venv venv
-        source venv/bin/activate && pip install -r requirements.txt
+        python3 -m venv "$GITHUB_ACTION_PATH/venv"
+        source "$GITHUB_ACTION_PATH/venv/bin/activate" && pip install -r "$GITHUB_ACTION_PATH/requirements.txt"
 
     - name: Put files to NeoFS
       shell: bash
@@ -90,10 +121,16 @@ runs:
         NEOFS_ATTRIBUTES: ${{ inputs.NEOFS_ATTRIBUTES }}
         URL_PREFIX: ${{ inputs.URL_PREFIX }}
         LIFETIME: ${{ inputs.LIFETIME }}
+        STRIP_PREFIX: ${{ inputs.STRIP_PREFIX }}
+        REPLACE_OBJECTS: ${{ inputs.REPLACE_OBJECTS }}
+        REPLACE_CONTAINER_CONTENTS: ${{ inputs.REPLACE_CONTAINER_CONTENTS }}
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
       run: |
-        source venv/bin/activate && NEOFS_CLI_PASSWORD=$NEOFS_WALLET_PASSWORD python ./push-to-neofs.py \
+        source "$GITHUB_ACTION_PATH/venv/bin/activate" && NEOFS_CLI_PASSWORD=$NEOFS_WALLET_PASSWORD python "$GITHUB_ACTION_PATH/push-to-neofs.py" \
         --lifetime "$LIFETIME" --neofs_domain "$NEOFS_NETWORK_DOMAIN" --attributes "$NEOFS_ATTRIBUTES" \
-        --cid "$STORE_OBJECTS_CID" --files-dir "$PATH_TO_FILES_DIR" --url_path_prefix "$URL_PREFIX" --wallet wallet.json
+        --cid "$STORE_OBJECTS_CID" --files-dir "$PATH_TO_FILES_DIR" --url_path_prefix "$URL_PREFIX" \
+        --replace-objects "$REPLACE_OBJECTS" --replace-container-contents "$REPLACE_CONTAINER_CONTENTS" \
+        --strip-prefix "$STRIP_PREFIX" --wallet "$GITHUB_ACTION_PATH/wallet.json"
         BASE_URL="https://$NEOFS_HTTP_GATE/$STORE_OBJECTS_CID"
         if [ -z "$URL_PREFIX" ]; then
           echo "container_url=$BASE_URL/" >> $GITHUB_OUTPUT
